@@ -71,6 +71,36 @@ a {
   padding: 16px 18px;
 }
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nav-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: transparent;
+  color: #475467;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nav-button:hover,
+.nav-button:focus-visible,
+.nav-button.active {
+  border-color: #d0d5dd;
+  background: #f9fafb;
+  color: #0f766e;
+}
+
 .workspace {
   width: min(100%, 1180px);
   display: grid;
@@ -84,6 +114,81 @@ a {
   display: grid;
   align-content: start;
   gap: 16px;
+  padding: 20px;
+}
+
+.admin-grid {
+  width: min(100%, 1180px);
+  display: grid;
+  gap: 18px;
+  margin: 0 auto;
+}
+
+.admin-hero,
+.table-panel {
+  border: 1px solid #e3e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(20, 28, 38, 0.06);
+}
+
+.admin-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px;
+}
+
+.admin-hero p {
+  margin-top: 4px;
+  color: #667085;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 92px;
+  padding: 16px;
+  border: 1px solid #e3e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #f3fbf9;
+  color: #0f766e;
+}
+
+.stat-card span {
+  display: block;
+  color: #667085;
+  font-size: 0.88rem;
+}
+
+.stat-card strong {
+  display: block;
+  margin-top: 2px;
+  color: #18202b;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.table-panel {
+  display: grid;
+  gap: 14px;
   padding: 20px;
 }
 
@@ -492,6 +597,92 @@ input:focus {
   font-weight: 400;
 }
 
+.data-table {
+  display: grid;
+  overflow-x: auto;
+  border: 1px solid #eef1f4;
+  border-radius: 8px;
+}
+
+.table-row {
+  min-width: 760px;
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) 120px 90px 110px 140px;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #eef1f4;
+  color: #344054;
+}
+
+.table-row:last-child {
+  border-bottom: 0;
+}
+
+.table-row.file-table {
+  grid-template-columns: minmax(260px, 1.6fr) minmax(220px, 1fr) 100px 170px 100px;
+}
+
+.table-head {
+  background: #f9fafb;
+  color: #667085;
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.table-empty {
+  padding: 24px;
+  color: #667085;
+}
+
+.truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 0.84rem;
+  text-transform: capitalize;
+}
+
+.badge.admin {
+  background: #f3fbf9;
+  color: #0f766e;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-button.danger {
+  color: #b42318;
+}
+
+.icon-button.danger:hover,
+.icon-button.danger:focus-visible {
+  border-color: #fecdca;
+  background: #fff4f2;
+}
+
+.alert {
+  padding: 12px 14px;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  background: #fff4f2;
+  color: #b42318;
+}
+
 .spin {
   animation: spin 900ms linear infinite;
 }
@@ -505,6 +696,10 @@ input:focus {
 @media (max-width: 900px) {
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -523,12 +718,32 @@ input:focus {
   }
 
   .topbar {
+    flex-direction: column;
+    align-items: stretch;
     padding: 14px;
+  }
+
+  .nav-actions {
+    justify-content: flex-start;
   }
 
   .upload-panel,
   .files-panel {
     padding: 16px;
+  }
+
+  .admin-hero {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .table-panel {
+    padding: 16px;
+  }
+
+  .stat-grid {
+    grid-template-columns: 1fr;
   }
 
   .brand-mark {

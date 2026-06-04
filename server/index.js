@@ -160,10 +160,20 @@ async function requireAuth(req, res, next) {
   }
 }
 
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required.' });
+  }
+
+  return next();
+}
+
 function publicUser(user) {
   return {
+    id: user._id.toString(),
     email: user.email,
     role: user.role,
+    createdAt: user.createdAt,
   };
 }
 
@@ -369,6 +379,111 @@ app.get('/api/files/:id/download', requireAuth, async (req, res, next) => {
     }
 
     return res.download(filePath, file.originalName);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/admin/summary', requireAuth, requireAdmin, async (_req, res, next) => {
+  try {
+    const [userCount, adminCount, fileCount, sharedFileCount, storage] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ role: 'admin' }),
+      StoredFile.countDocuments(),
+      StoredFile.countDocuments({ sharedWith: { $exists: true, $ne: [] } }),
+      StoredFile.aggregate([{ $group: { _id: null, totalBytes: { $sum: '$size' } } }]),
+    ]);
+
+    return res.json({
+      summary: {
+        userCount,
+        adminCount,
+        fileCount,
+        sharedFileCount,
+        totalBytes: storage[0]?.totalBytes || 0,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/admin/users', requireAuth, requireAdmin, async (_req, res, next) => {
+  try {
+    const users = await User.find({})
+      .select('_id email role createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
+    const fileCounts = await StoredFile.aggregate([
+      { $group: { _id: '$owner', fileCount: { $sum: 1 }, totalBytes: { $sum: '$size' } } },
+    ]);
+    const countsByOwner = new Map(
+      fileCounts.map((entry) => [
+        entry._id.toString(),
+        { fileCount: entry.fileCount, totalBytes: entry.totalBytes },
+      ])
+    );
+
+    return res.json({
+      users: users.map((user) => ({
+        ...publicUser(user),
+        fileCount: countsByOwner.get(user._id.toString())?.fileCount || 0,
+        totalBytes: countsByOwner.get(user._id.toString())?.totalBytes || 0,
+      })),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.patch('/api/admin/users/:id/role', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const role = String(req.body?.role || '');
+    if (!['user', 'admin'].includes(role)) {
+      return res.status(400).json({ message: 'Role must be user or admin.' });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    if (user.role === 'admin' && role === 'user') {
+      const adminCount = await User.countDocuments({ role: 'admin' });
+      if (adminCount <= 1) {
+        return res.status(400).json({ message: 'At least one admin account is required.' });
+      }
+    }
+
+    user.role = role;
+    await user.save();
+
+    return res.json({ user: publicUser(user) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/admin/files', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const files = await StoredFile.find({})
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ files: files.map((file) => serializeFileForUser(file, req.user)) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.delete('/api/admin/files/:id', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const file = await StoredFile.findById(req.params.id);
+    if (!file) return res.status(404).json({ message: 'File not found.' });
+
+    const filePath = path.join(uploadDir, file.storedName);
+    await StoredFile.deleteOne({ _id: file._id });
+    await fsp.rm(filePath, { force: true }).catch(() => {});
+
+    return res.status(204).send();
   } catch (error) {
     return next(error);
   }

@@ -2,9 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   CheckCircle2,
+  Database,
   Download,
   File,
   FileUp,
+  Home,
+  LayoutDashboard,
   Loader2,
   LogOut,
   RefreshCw,
@@ -12,6 +15,8 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  UserCog,
+  Users,
   XCircle,
 } from 'lucide-react';
 import './styles.css';
@@ -61,6 +66,7 @@ async function api(path, options = {}) {
 function App() {
   const inputRef = useRef(null);
   const xhrRef = useRef(null);
+  const [path, setPath] = useState(window.location.pathname);
   const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState('login');
   const [authForm, setAuthForm] = useState({ email: '', password: '' });
@@ -84,6 +90,12 @@ function App() {
   }, [progress, selectedFile, uploadStatus]);
 
   useEffect(() => {
+    const handlePopState = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
     api('/api/auth/me')
       .then((data) => {
         setUser(data.user);
@@ -95,6 +107,11 @@ function App() {
         setAuthStatus('Login or create an account to continue.');
       });
   }, []);
+
+  function navigate(nextPath) {
+    window.history.pushState({}, '', nextPath);
+    setPath(nextPath);
+  }
 
   function updateFile(nextFile) {
     setFiles((currentFiles) =>
@@ -143,6 +160,7 @@ function App() {
     setFiles([]);
     resetUpload();
     setAuthStatus('Logged out.');
+    navigate('/');
   }
 
   function handleFileChange(event) {
@@ -172,7 +190,7 @@ function App() {
       }
     };
 
-    xhr.onload = async () => {
+    xhr.onload = () => {
       xhrRef.current = null;
       if (xhr.status >= 200 && xhr.status < 300) {
         const data = JSON.parse(xhr.responseText);
@@ -245,88 +263,29 @@ function App() {
 
   if (!user) {
     return (
-      <main className="page auth-page">
-        <section className="auth-shell">
-          <div className="heading">
-            <div className="brand-mark" aria-hidden="true">
-              <ShieldCheck size={30} />
-            </div>
-            <div>
-              <h1>File Access Portal</h1>
-              <p>Sign in with your email to upload, download, and share files.</p>
-            </div>
-          </div>
-
-          <div className="segmented" aria-label="Authentication mode">
-            <button
-              className={authMode === 'login' ? 'active' : ''}
-              type="button"
-              onClick={() => setAuthMode('login')}
-            >
-              Login
-            </button>
-            <button
-              className={authMode === 'register' ? 'active' : ''}
-              type="button"
-              onClick={() => setAuthMode('register')}
-            >
-              Register
-            </button>
-          </div>
-
-          <form className="auth-form" onSubmit={handleAuth}>
-            <label>
-              Email
-              <input
-                type="email"
-                value={authForm.email}
-                onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })}
-                placeholder="name@example.com"
-                autoComplete="email"
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                value={authForm.password}
-                onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
-                placeholder="At least 8 characters"
-                autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-                minLength={8}
-                required
-              />
-            </label>
-            <button className="button primary" type="submit" disabled={authBusy}>
-              {authBusy ? 'Please wait' : authMode === 'login' ? 'Login' : 'Create account'}
-            </button>
-          </form>
-
-          <p className="status-message">{authStatus}</p>
-        </section>
-      </main>
+      <AuthScreen
+        authBusy={authBusy}
+        authForm={authForm}
+        authMode={authMode}
+        authStatus={authStatus}
+        handleAuth={handleAuth}
+        setAuthForm={setAuthForm}
+        setAuthMode={setAuthMode}
+      />
     );
+  }
+
+  if (path === '/admin') {
+    if (user.role !== 'admin') {
+      return <AccessDenied navigate={navigate} logout={logout} user={user} />;
+    }
+
+    return <AdminPanel navigate={navigate} logout={logout} user={user} />;
   }
 
   return (
     <main className="page app-page">
-      <section className="topbar">
-        <div className="heading compact">
-          <div className="brand-mark" aria-hidden="true">
-            <FileUp size={28} />
-          </div>
-          <div>
-            <h1>File Access Portal</h1>
-            <p>
-              {user.email} · {user.role}
-            </p>
-          </div>
-        </div>
-        <button className="icon-button" type="button" onClick={logout} title="Logout">
-          <LogOut size={20} />
-        </button>
-      </section>
+      <Topbar navigate={navigate} logout={logout} user={user} currentPath={path} />
 
       <section className="workspace">
         <div className="upload-panel">
@@ -338,7 +297,7 @@ function App() {
             onDrop={handleDrop}
             disabled={uploadStatus === 'uploading'}
           >
-            <Upload size={34} />
+            <Upload size={32} />
             <span>{selectedFile ? 'Change selected file' : 'Select or drop a file'}</span>
           </button>
 
@@ -389,97 +348,451 @@ function App() {
               <p>Owned files and files shared with your email.</p>
             </div>
             <button className="icon-button" type="button" onClick={loadFiles} title="Refresh files">
-              <RefreshCw size={20} />
+              <RefreshCw size={19} />
             </button>
           </div>
 
           <div className="file-list">
             {files.length === 0 ? (
-              <div className="empty-state">
-                <File size={30} />
-                <span>No files available yet.</span>
-              </div>
+              <EmptyState />
             ) : (
               files.map((file) => (
-                <article className="file-row" key={file.id}>
-                  <div className="file-main">
-                    <File size={24} />
-                    <div className="file-details">
-                      <span className="file-name">{file.originalName}</span>
-                      <span className="file-meta">
-                        {formatBytes(file.size)} · {formatDate(file.createdAt)}
-                      </span>
-                      <span className="file-meta">
-                        {file.access === 'owner'
-                          ? 'Owned by you'
-                          : file.access === 'admin'
-                            ? `Admin access · owner ${file.ownerEmail}`
-                            : `Shared by ${file.ownerEmail}`}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="file-actions">
-                    <a
-                      className="icon-button"
-                      href={`${API_BASE}/api/files/${file.id}/download`}
-                      title="Download file"
-                    >
-                      <Download size={20} />
-                    </a>
-                  </div>
-
-                  {(file.access === 'owner' || file.access === 'admin') && (
-                    <div className="share-area">
-                      <div className="share-form">
-                        <input
-                          type="email"
-                          value={shareInputs[file.id] || ''}
-                          onChange={(event) =>
-                            setShareInputs((current) => ({
-                              ...current,
-                              [file.id]: event.target.value,
-                            }))
-                          }
-                          placeholder="share-with@example.com"
-                        />
-                        <button
-                          className="button small"
-                          type="button"
-                          onClick={() => shareFile(file)}
-                          disabled={busyFileId === file.id}
-                        >
-                          <Share2 size={16} />
-                          Share
-                        </button>
-                      </div>
-
-                      {file.sharedWith.length > 0 && (
-                        <div className="chips">
-                          {file.sharedWith.map((email) => (
-                            <span className="chip" key={email}>
-                              {email}
-                              <button
-                                type="button"
-                                onClick={() => removeShare(file, email)}
-                                disabled={busyFileId === file.id}
-                                title={`Remove ${email}`}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </article>
+                <FileCard
+                  busyFileId={busyFileId}
+                  file={file}
+                  key={file.id}
+                  removeShare={removeShare}
+                  shareFile={shareFile}
+                  shareInputs={shareInputs}
+                  setShareInputs={setShareInputs}
+                />
               ))
             )}
           </div>
         </div>
       </section>
     </main>
+  );
+}
+
+function AuthScreen({
+  authBusy,
+  authForm,
+  authMode,
+  authStatus,
+  handleAuth,
+  setAuthForm,
+  setAuthMode,
+}) {
+  return (
+    <main className="page auth-page">
+      <section className="auth-shell">
+        <div className="heading">
+          <div className="brand-mark" aria-hidden="true">
+            <ShieldCheck size={28} />
+          </div>
+          <div>
+            <h1>File Access Portal</h1>
+            <p>Sign in with your email to upload, download, and share files.</p>
+          </div>
+        </div>
+
+        <div className="segmented" aria-label="Authentication mode">
+          <button
+            className={authMode === 'login' ? 'active' : ''}
+            type="button"
+            onClick={() => setAuthMode('login')}
+          >
+            Login
+          </button>
+          <button
+            className={authMode === 'register' ? 'active' : ''}
+            type="button"
+            onClick={() => setAuthMode('register')}
+          >
+            Register
+          </button>
+        </div>
+
+        <form className="auth-form" onSubmit={handleAuth}>
+          <label>
+            Email
+            <input
+              type="email"
+              value={authForm.email}
+              onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })}
+              placeholder="name@example.com"
+              autoComplete="email"
+              required
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={authForm.password}
+              onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
+              placeholder="At least 8 characters"
+              autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+              minLength={8}
+              required
+            />
+          </label>
+          <button className="button primary" type="submit" disabled={authBusy}>
+            {authBusy ? 'Please wait' : authMode === 'login' ? 'Login' : 'Create account'}
+          </button>
+        </form>
+
+        <p className="status-message">{authStatus}</p>
+      </section>
+    </main>
+  );
+}
+
+function Topbar({ currentPath, navigate, logout, user }) {
+  return (
+    <section className="topbar">
+      <div className="heading compact">
+        <div className="brand-mark" aria-hidden="true">
+          <FileUp size={24} />
+        </div>
+        <div>
+          <h1>File Access Portal</h1>
+          <p>
+            {user.email} · {user.role}
+          </p>
+        </div>
+      </div>
+
+      <div className="nav-actions">
+        <button
+          className={`nav-button ${currentPath === '/' ? 'active' : ''}`}
+          type="button"
+          onClick={() => navigate('/')}
+        >
+          <Home size={17} />
+          Files
+        </button>
+        {user.role === 'admin' && (
+          <button
+            className={`nav-button ${currentPath === '/admin' ? 'active' : ''}`}
+            type="button"
+            onClick={() => navigate('/admin')}
+          >
+            <LayoutDashboard size={17} />
+            Admin
+          </button>
+        )}
+        <button className="icon-button" type="button" onClick={logout} title="Logout">
+          <LogOut size={19} />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function FileCard({ busyFileId, file, removeShare, shareFile, shareInputs, setShareInputs }) {
+  return (
+    <article className="file-row">
+      <div className="file-main">
+        <File size={22} />
+        <div className="file-details">
+          <span className="file-name">{file.originalName}</span>
+          <span className="file-meta">
+            {formatBytes(file.size)} · {formatDate(file.createdAt)}
+          </span>
+          <span className="file-meta">
+            {file.access === 'owner'
+              ? 'Owned by you'
+              : file.access === 'admin'
+                ? `Admin access · owner ${file.ownerEmail}`
+                : `Shared by ${file.ownerEmail}`}
+          </span>
+        </div>
+      </div>
+
+      <div className="file-actions">
+        <a className="icon-button" href={`${API_BASE}/api/files/${file.id}/download`} title="Download file">
+          <Download size={19} />
+        </a>
+      </div>
+
+      {(file.access === 'owner' || file.access === 'admin') && (
+        <div className="share-area">
+          <div className="share-form">
+            <input
+              type="email"
+              value={shareInputs[file.id] || ''}
+              onChange={(event) =>
+                setShareInputs((current) => ({
+                  ...current,
+                  [file.id]: event.target.value,
+                }))
+              }
+              placeholder="share-with@example.com"
+            />
+            <button
+              className="button small"
+              type="button"
+              onClick={() => shareFile(file)}
+              disabled={busyFileId === file.id}
+            >
+              <Share2 size={16} />
+              Share
+            </button>
+          </div>
+
+          {file.sharedWith.length > 0 && (
+            <div className="chips">
+              {file.sharedWith.map((email) => (
+                <span className="chip" key={email}>
+                  {email}
+                  <button
+                    type="button"
+                    onClick={() => removeShare(file, email)}
+                    disabled={busyFileId === file.id}
+                    title={`Remove ${email}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function AdminPanel({ navigate, logout, user }) {
+  const [summary, setSummary] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState('');
+
+  useEffect(() => {
+    loadAdminData();
+  }, []);
+
+  async function loadAdminData() {
+    setLoading(true);
+    setError('');
+
+    try {
+      const [summaryData, usersData, filesData] = await Promise.all([
+        api('/api/admin/summary'),
+        api('/api/admin/users'),
+        api('/api/admin/files'),
+      ]);
+      setSummary(summaryData.summary);
+      setUsers(usersData.users);
+      setFiles(filesData.files);
+    } catch (adminError) {
+      setError(adminError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateRole(targetUser, role) {
+    setBusyId(targetUser.id);
+    setError('');
+
+    try {
+      const data = await api(`/api/admin/users/${targetUser.id}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      });
+      setUsers((currentUsers) =>
+        currentUsers.map((currentUser) =>
+          currentUser.id === targetUser.id ? { ...currentUser, role: data.user.role } : currentUser
+        )
+      );
+    } catch (roleError) {
+      setError(roleError.message);
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  async function deleteFile(file) {
+    if (!window.confirm(`Delete "${file.originalName}" permanently?`)) return;
+
+    setBusyId(file.id);
+    setError('');
+
+    try {
+      await api(`/api/admin/files/${file.id}`, { method: 'DELETE' });
+      setFiles((currentFiles) => currentFiles.filter((currentFile) => currentFile.id !== file.id));
+      setSummary((currentSummary) =>
+        currentSummary
+          ? {
+              ...currentSummary,
+              fileCount: Math.max(currentSummary.fileCount - 1, 0),
+              totalBytes: Math.max(currentSummary.totalBytes - file.size, 0),
+            }
+          : currentSummary
+      );
+    } catch (deleteError) {
+      setError(deleteError.message);
+    } finally {
+      setBusyId('');
+    }
+  }
+
+  return (
+    <main className="page app-page">
+      <Topbar currentPath="/admin" navigate={navigate} logout={logout} user={user} />
+
+      <section className="admin-grid">
+        <div className="admin-hero">
+          <div>
+            <h2>Admin Panel</h2>
+            <p>Review users, storage, roles, and every uploaded file.</p>
+          </div>
+          <button className="button secondary" type="button" onClick={loadAdminData} disabled={loading}>
+            <RefreshCw size={17} />
+            Refresh
+          </button>
+        </div>
+
+        {error && <p className="alert">{error}</p>}
+
+        <div className="stat-grid">
+          <StatCard icon={<Users size={20} />} label="Users" value={summary?.userCount ?? '-'} />
+          <StatCard icon={<UserCog size={20} />} label="Admins" value={summary?.adminCount ?? '-'} />
+          <StatCard icon={<File size={20} />} label="Files" value={summary?.fileCount ?? '-'} />
+          <StatCard icon={<Database size={20} />} label="Storage" value={formatBytes(summary?.totalBytes || 0)} />
+        </div>
+
+        <section className="table-panel">
+          <div className="panel-head">
+            <div>
+              <h2>Users</h2>
+              <p>Promote or demote accounts. At least one admin is always required.</p>
+            </div>
+          </div>
+
+          <div className="data-table">
+            <div className="table-row table-head">
+              <span>Email</span>
+              <span>Role</span>
+              <span>Files</span>
+              <span>Storage</span>
+              <span>Action</span>
+            </div>
+            {users.map((adminUser) => (
+              <div className="table-row" key={adminUser.id}>
+                <span className="truncate">{adminUser.email}</span>
+                <span>
+                  <span className={`badge ${adminUser.role}`}>{adminUser.role}</span>
+                </span>
+                <span>{adminUser.fileCount}</span>
+                <span>{formatBytes(adminUser.totalBytes)}</span>
+                <span>
+                  <button
+                    className="button small secondary"
+                    type="button"
+                    onClick={() => updateRole(adminUser, adminUser.role === 'admin' ? 'user' : 'admin')}
+                    disabled={busyId === adminUser.id}
+                  >
+                    {adminUser.role === 'admin' ? 'Make user' : 'Make admin'}
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="table-panel">
+          <div className="panel-head">
+            <div>
+              <h2>All Files</h2>
+              <p>Admins can download or permanently remove any file.</p>
+            </div>
+          </div>
+
+          <div className="data-table">
+            <div className="table-row file-table table-head">
+              <span>File</span>
+              <span>Owner</span>
+              <span>Size</span>
+              <span>Uploaded</span>
+              <span>Actions</span>
+            </div>
+            {files.length === 0 && <div className="table-empty">No files uploaded yet.</div>}
+            {files.map((file) => (
+              <div className="table-row file-table" key={file.id}>
+                <span className="truncate">{file.originalName}</span>
+                <span className="truncate">{file.ownerEmail}</span>
+                <span>{formatBytes(file.size)}</span>
+                <span>{formatDate(file.createdAt)}</span>
+                <span className="row-actions">
+                  <a className="icon-button" href={`${API_BASE}/api/files/${file.id}/download`} title="Download file">
+                    <Download size={18} />
+                  </a>
+                  <button
+                    className="icon-button danger"
+                    type="button"
+                    onClick={() => deleteFile(file)}
+                    disabled={busyId === file.id}
+                    title="Delete file"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function StatCard({ icon, label, value }) {
+  return (
+    <article className="stat-card">
+      <div className="stat-icon">{icon}</div>
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+    </article>
+  );
+}
+
+function AccessDenied({ navigate, logout, user }) {
+  return (
+    <main className="page app-page">
+      <Topbar currentPath="/admin" navigate={navigate} logout={logout} user={user} />
+      <section className="auth-shell">
+        <div className="heading">
+          <div className="brand-mark" aria-hidden="true">
+            <ShieldCheck size={28} />
+          </div>
+          <div>
+            <h1>Admin access required</h1>
+            <p>Your account does not have permission to open this panel.</p>
+          </div>
+        </div>
+        <button className="button primary" type="button" onClick={() => navigate('/')}>
+          Back to files
+        </button>
+      </section>
+    </main>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="empty-state">
+      <File size={30} />
+      <span>No files available yet.</span>
+    </div>
   );
 }
 

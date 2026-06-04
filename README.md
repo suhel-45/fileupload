@@ -10,6 +10,7 @@ React + Express + MongoDB app for uploading files, downloading files, and sharin
 - File owners can share access with another user's email address.
 - Shared users can see and download only the files shared with them.
 - The first registered account becomes `admin`.
+- Admin users can open `/admin` to view users, storage, all uploaded files, change user roles, download any file, and delete files.
 
 ## Local Setup
 
