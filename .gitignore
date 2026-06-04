@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+
+# Uploaded files and temporary upload output
+uploads/
+uploads-*/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Runtime/process files
+*.pid
+*.seed
+*.pid.lock
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Test/coverage output
+coverage/
+.nyc_output/
